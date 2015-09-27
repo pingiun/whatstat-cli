@@ -8,3 +8,11 @@ getopts = "0.2"
 time = "*"
 regex = "0.1.8"
 rustc-serialize = "0.3"
+
+[[bin]]
+name = "whatstat_cli"
+path = "src/main.rs"
+[lib]
+name = "whatstat_lib"
+path = "src/lib.rs"
+#crate-type = ["dylib"]
