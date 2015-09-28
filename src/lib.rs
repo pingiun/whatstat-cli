@@ -24,12 +24,16 @@ struct Output {
 
 #[derive(RustcEncodable)]
 struct Analysis {
+    msg_total: u64,
+    media_total: u64,
+    title_changes: BTreeMap<String, Vec<String>>,
+    starts_most_chats: BTreeMap<String, u64>,
     msg_per_person: BTreeMap<String, u64>,
+    media_per_person: BTreeMap<String, u64>,
     avg_per_person: BTreeMap<String, u64>,
     chr_per_person: BTreeMap<String, u64>,
-    most_used_word: BTreeMap<String, u64>,
-    //most_used_emoji: BTreeMap<String, u64>,
     msg_per_day: BTreeMap<String, u64>,
+    most_used_word: BTreeMap<String, u64>,
 }
 
 struct JsonTime(time::Tm);
@@ -60,26 +64,47 @@ pub fn analyse(input: &str, out: Option<String>) -> Result<String, io::Error> {
 
     // De regex die gebruikt wordt om alle benodigde informatie te
     // extraheren
-    let berichtreg = Regex::new(r"(?P<datum>\d{4}/\d{2}/\d{2}, \d{2}:\d{2}) - (?:(?P<naam>[\w ]+): (?P<bericht>.*)|(?P<speciaal>.*))").unwrap();
+    let berichtreg = Regex::new(r"(?P<datum>\d{4}/\d{2}/\d{2}, \d{2}:\d{2}) - (?:(?P<naam>[\w ]+): (?P<bericht>.*)|(?P<naamspeciaal>.+)(?P<speciaal> changed.+)|(?P<naambeheerder>.+) added (?P<naamjoin>.+)|(?P<naamleft>.+) left)").unwrap();
     let woordreg = Regex::new(r"(\b[^\s]+\b)").unwrap();
+    let mediareg = Regex::new(r"<Media omitted>").unwrap();
+    let titelreg = Regex::new(r"^changed the subject to “(.+)”").unwrap();
 
     // De variabeles voor de informatie die moet worden verzameld
 	let mut lines = 0;
+    let mut berichten = 0;
+    let mut media = 0;
     let mut eerste_tijd = None;
     let mut laatste_tijd = None;
+    let mut analyse_per_naam: BTreeMap<String, Json> = BTreeMap::new();
     let mut tekens_per_naam: BTreeMap<String, u64> = BTreeMap::new();
     let mut berichten_per_naam: BTreeMap<String, u64> = BTreeMap::new();
+    let mut media_per_naam: BTreeMap<String, u64> = BTreeMap::new();
     let mut meest_gebruikte_woorden: BTreeMap<String, u64> = BTreeMap::new();
     let mut berichten_per_dag: BTreeMap<String, u64> = BTreeMap::new();
-    let mut begint_meeste_gesprekken: BTreeMap<String, u64> = BTreeMap::new();
+    let mut begint_meeste_gesprekken: BTreeMap<String, u64> = BTreeMap::new(); //Detecteerd niet daadwerkelijk gesprekken, maar kijkt wie elke dag het gesprek begint.
+    let mut titel_verandering: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     // Regex de input string s en iterate over de bericht matches
 	for cap in berichtreg.captures_iter(&s) {
         // De informatie uit de berichten
         let naam = cap.name("naam").unwrap_or("");
         let bericht = cap.name("bericht").unwrap_or("");
+        let naamspeciaal = cap.name("naamspeciaal").unwrap_or("");
+        let speciaal = cap.name("speciaal").unwrap_or("");
         let datum = cap.name("datum").unwrap_or("");
         let dag = JsonTime(time::strptime(datum, "%Y/%m/%d").ok().unwrap()).to_json().to_string();
+
+        if mediareg.is_match(bericht) {
+            media += 1;
+        } else {
+            berichten += 1;
+        }
+
+        if speciaal != "" {
+            if let Some(captures) = titelreg.captures(&speciaal) {
+                titel_verandering.insert(dag.to_string(), vec![naamspeciaal.to_string(), captures.at(1).unwrap().to_string()]);
+            }
+        }
 
         for cap in woordreg.captures_iter(&bericht) {
             let woord = cap.at(1).unwrap_or("");
@@ -123,8 +148,18 @@ pub fn analyse(input: &str, out: Option<String>) -> Result<String, io::Error> {
             if let Some(x) = berichten_per_naam.get_mut(naam) {
                 *x += 1;
             }
-        } else if naam != "" {
+        } else if naam != "" && bericht != "" {
             berichten_per_naam.insert(naam.to_string(), 1);
+        }
+
+        if media_per_naam.contains_key(naam) {
+            if let Some(x) = media_per_naam.get_mut(naam) {
+                if mediareg.is_match(bericht){
+                    *x += 1;
+                }
+            }
+        } else if naam != "" && mediareg.is_match(bericht) {
+            media_per_naam.insert(naam.to_string(), 1);
         }
 		lines += 1;
         laatste_tijd = Some(datum);
@@ -148,12 +183,16 @@ pub fn analyse(input: &str, out: Option<String>) -> Result<String, io::Error> {
     }
 
     let a = Analysis {
+        msg_total: berichten,
+        media_total: media,
+        title_changes: titel_verandering,
+        starts_most_chats: begint_meeste_gesprekken,
         msg_per_person: berichten_per_naam,
+        media_per_person: media_per_naam,
         avg_per_person: gemiddelde_per_naam,
         chr_per_person: tekens_per_naam,
-        most_used_word: meest_gebruikte_woorden2,
         msg_per_day: berichten_per_dag,
-        //most_used_emoji: meest_gebruikte_emoji,
+        most_used_word: meest_gebruikte_woorden2,
     };
 
     let o = Output {
