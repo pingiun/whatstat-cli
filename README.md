@@ -18,3 +18,4 @@ Choose 'Without media' because this tool will not analyse any media files.
 - Make it possible to call `analyse()` externally
 - Command line options to enable/disable certian analyses
 - Tidy JSON
+- Add tests!
