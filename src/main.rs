@@ -29,7 +29,7 @@ fn main() {
     let program = args[0].clone();
 
     let mut opts = Options::new();
-    opts.optopt("o", "", "set output file name", "NAME");
+    opts.optopt("o", "", "set output file name", "FILE");
     opts.optflag("h", "help", "print this help menu");
 	opts.optflag("v", "version", "print the version and exit");
 
