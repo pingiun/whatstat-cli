@@ -13,7 +13,7 @@ use std::fs;
 mod utils;
 mod lib;
 
-const VERSION: &'static str = "0.1.0";
+const VERSION: &'static str = "0.1.1";
 
 fn print_version() {
 	println!("Using version {}", VERSION);
